@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG Studio – learn retrieval-augmented generation</title>
+<style>
+:root{--purple:#7d2ae8;--violet:#5a32ea;--teal:#00c4cc;--pink:#ff5ea8;--sun:#ffc43d;--ink:#0e1318;--mute:#5b6472;--bg:#f4f5ff;--card:#fff;--line:#e4e6f5}
+@media (prefers-color-scheme:dark){:root{--ink:#f1f2fa;--mute:#a4abc0;--bg:#15162a;--card:#1f2040;--line:#33355e}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.55 "Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--bg)}
+header{background:linear-gradient(110deg,var(--teal),var(--violet) 55%,var(--purple));color:#fff;padding:28px 24px 64px}
+.wrap{max-width:1040px;margin:0 auto}
+h1{margin:0 0 6px;font-size:clamp(26px,4vw,38px);letter-spacing:-.5px}
+header p{margin:0;opacity:.92;max-width:62ch}
+.steps{display:flex;gap:8px;overflow-x:auto;padding:4px;margin:-34px auto 18px;max-width:1040px}
+.steps button{flex:1 0 auto;border:0;border-radius:999px;padding:10px 16px;font:600 14px inherit;font-family:inherit;background:var(--card);color:var(--ink);cursor:pointer;box-shadow:0 2px 8px rgba(40,30,120,.15);white-space:nowrap}
+.steps button.on{background:var(--ink);color:var(--bg)}
+.steps button.done{outline:2px solid var(--teal)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+main{max-width:1040px;margin:0 auto;padding:0 16px 60px}
+.card{background:var(--card);border-radius:20px;padding:24px;box-shadow:0 6px 24px rgba(60,40,160,.1);margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:22px}
+.lead{color:var(--mute);margin:0 0 16px}
+.tip{background:linear-gradient(90deg,rgba(0,196,204,.14),rgba(125,42,232,.12));border-radius:14px;padding:12px 16px;margin:14px 0;font-size:14.5px}
+textarea,input[type=text],select{width:100%;border:2px solid var(--line);border-radius:12px;padding:10px 12px;font:14px/1.5 inherit;font-family:inherit;background:var(--bg);color:var(--ink)}
+textarea{min-height:230px;resize:vertical}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:end;margin:12px 0}
+.row>label{display:flex;flex-direction:column;gap:4px;font-size:13.5px;font-weight:600;flex:1 1 160px}
+.btn{border:0;border-radius:999px;padding:11px 22px;font:700 15px inherit;font-family:inherit;color:#fff;background:linear-gradient(110deg,var(--violet),var(--purple));cursor:pointer;box-shadow:0 4px 12px rgba(125,42,232,.35)}
+.btn.alt{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
+.nav{display:flex;justify-content:space-between;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.chunk{border:2px solid var(--line);border-radius:16px;padding:12px;font-size:13.5px;background:var(--bg)}
+.chunk small{color:var(--mute)}
+.chip{display:inline-block;border-radius:999px;padding:2px 10px;margin:0 4px 4px 0;font-size:12px;font-weight:600;color:#fff}
+.c0{background:var(--violet)}.c1{background:var(--teal);color:#06383a}.c2{background:var(--pink)}.c3{background:var(--sun);color:#4a3500}
+.heat{display:grid;grid-template-columns:repeat(32,1fr);gap:2px;margin-top:8px}
+.heat i{aspect-ratio:1;border-radius:3px;display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:600}
+.scroll{overflow-x:auto}
+.hit{display:flex;gap:12px;border:2px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px;background:var(--bg)}
+.hit.top{border-color:var(--teal)}
+.score{min-width:64px;text-align:center;font-weight:800;font-size:20px;color:var(--purple)}
+.bar{height:8px;border-radius:9px;background:var(--line);margin-top:6px;overflow:hidden}.bar b{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--purple))}
+pre{white-space:pre-wrap;background:#14152b;color:#e8e9ff;border-radius:14px;padding:16px;font:13px/1.6 Consolas,Menlo,monospace;margin:0}
+.ans{border-left:6px solid var(--pink);padding:8px 16px;background:var(--bg);border-radius:0 14px 14px 0}
+mark{background:rgba(255,196,61,.55);color:inherit;border-radius:4px;padding:0 2px}
+.stat{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}.stat span{background:var(--bg);border-radius:12px;padding:6px 12px;font-size:13.5px;font-weight:600}
+@media (prefers-reduced-motion:no-preference){.panel{animation:in .25s ease}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>RAG Studio</h1><p>Walk through every stage of retrieval-augmented generation with a real document. Everything runs in your browser, no server or API key needed.</p></div></header>
+<nav class="steps" id="steps" aria-label="RAG steps"></nav>
+<main id="main"></main>
+
+<script>
+const SAMPLE=`Problem | P0 problem
+Users face a booking confidence gap due to inconsistent listing quality and a lack of trust signals, leading to decision friction and drop-offs. Users are unsure whether a listing will match their expectations on photos, amenities, cleanliness and safety.
+
+Solutions | Possible solutions
+- Location verification: validate that the listing location is credible before booking. Confidence is high.
+- Property verification: verify selected property details against defined checks. Confidence is high.
+- Verified video walkthrough: add a walkthrough inside the property gallery so visual evidence reduces uncertainty about the stay. Confidence is high.
+- Google Maps distance integration: show distances to chosen places without revealing the exact address. Confidence is low.
+
+Prototype | What changed
+The search experience adds a Show only Airbnb Verified Properties option so guests can prioritise verified stays. Each listing carries an Airbnb Verified badge that links to the defined verification evidence.
+
+Metrics | Metrics to measure
+- Verified property booking conversion: verified bookings divided by verified detail views. This is the key metric.
+- Booking abandonment rate: percent of verified viewers who leave without booking.
+- Verification engagement rate: percent of guests using the walkthrough or location panel.
+- Post-stay listing mismatch rate: a guardrail that protects against false confidence.
+
+Risks | Assumptions to watch
+- Verification stays current: the property changes after verification. Mitigation is to show a last-verified date and trigger re-verification.
+- Verified is read as a guarantee: guests assume Airbnb guarantees the whole stay. Mitigation is to scope the badge clearly.
+- Hosts face too much friction: run a small manual host pilot before scaling.
+- Verification is expensive to scale: start with a controlled geography and automate gradually.`;
+
+const STEPS=["Load","Chunk","Metadata","Embed","Store","Retrieve","Generate"];
+const STOP=new Set("the and for are with that this from have has was were not you your into than then them they their can will but all any its out who how what when which why does did a an of to in on at by be as is it or if so we".split(" "));
+const DIM=128;
+const S={step:0,doc:SAMPLE,mode:"structure",size:40,overlap:8,chunks:[],vecs:[],q:"Which metric protects against false confidence?",k:3,filter:"all",parent:true,res:[],reached:0};
+const $=s=>document.querySelector(s);
+
+function tok(t){return (t.toLowerCase().match(/[a-z0-9]+/g)||[]).filter(w=>w.length>2&&!STOP.has(w)).map(w=>w.length>4?w.replace(/(ing|ed|es|s)$/,""):w)}
+function hash(w){let h=2166136261;for(const c of w){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function embed(t){const v=new Array(DIM).fill(0);for(const w of tok(t)){const h=hash(w);v[h%DIM]+=(h&0x10000?1:-1)}
+ const n=Math.hypot(...v)||1;return v.map(x=>x/n)}
+const cos=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function blocks(){return S.doc.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean).map((b,i)=>{const ls=b.split("\n");let head=ls[0].split("|");let sec="General",title="Slide "+(i+1),body=b;
+ if(head.length==2){sec=head[0].trim();title=head[1].trim();body=ls.slice(1).join("\n")}return{slide:i+1,sec,title,body}})}
+
+function doChunk(){const out=[];const B=blocks();
+ if(S.mode=="structure"){B.forEach(b=>{const rows=b.body.split("\n").filter(l=>l.startsWith("- "));
+  if(rows.length)rows.forEach(r=>out.push({text:r.slice(2),meta:{slide:b.slide,section:b.sec,title:b.title,type:"table_row"},parent:b.body}));
+  else out.push({text:b.body,meta:{slide:b.slide,section:b.sec,title:b.title,type:"narrative"},parent:b.body})})}
+ else if(S.mode=="sentence"){B.forEach(b=>{const ss=b.body.replace(/\n- /g,". ").split(/(?<=[.!?])\s+/).filter(Boolean);
+  for(let i=0;i<ss.length;i+=2)out.push({text:ss.slice(i,i+2).join(" "),meta:{slide:b.slide,section:b.sec,title:b.title,type:"sentences"},parent:b.body})})}
+ else{const w=B.map(b=>b.body).join(" ").split(/\s+/);const step=Math.max(1,S.size-S.overlap);
+  for(let i=0;i<w.length;i+=step){out.push({text:w.slice(i,i+S.size).join(" "),meta:{slide:"unknown",section:"unknown",title:"unknown",type:"fixed"},parent:null});if(i+S.size>=w.length)break}}
+ S.chunks=out.map((c,i)=>({id:"c"+(i+1),...c}));S.vecs=[];S.res=[]}
+function ensure(n){if(n>=1&&!S.chunks.length)doChunk();if(n>=3&&!S.vecs.length)S.vecs=S.chunks.map(c=>embed(ctx(c)))}
+const ctx=c=>c.meta.title!=="unknown"?`${c.meta.title}. ${c.text}`:c.text;
+
+function heat(v){return `<div class="heat">${v.map(x=>{const a=Math.min(1,Math.abs(x)*4);return `<i style="background:${x>=0?"rgba(125,42,232,":"rgba(0,196,204,"}${.12+a*.88})"></i>`}).join("")}</div>`}
+function chips(m){return Object.entries(m).map(([k,v],i)=>`<span class="chip c${i%4}">${k}: ${esc(String(v))}</span>`).join("")}
+
+const V={
+0:()=>`<div class="card panel"><h2>Step 1: Load your document</h2><p class="lead">RAG starts with source knowledge. Paste any text, or keep this sample about an Airbnb Verified Property case study. Blank lines separate slides, and a first line like <b>Section | Title</b> names each one.</p>
+<textarea id="doc" aria-label="Document text">${esc(S.doc)}</textarea>
+<div class="stat"><span>${blocks().length} slides</span><span>${S.doc.split(/\s+/).length} words</span></div>
+<div class="tip"><b>Why it matters:</b> the model only knows what you retrieve. Bad source text means bad answers, so clean it first.</div></div>`,
+1:()=>`<div class="card panel"><h2>Step 2: Chunk the text</h2><p class="lead">Long documents are split into small pieces so each one can be searched on its own. Try each strategy and compare.</p>
+<div class="row"><label>Strategy<select id="mode"><option value="structure">Structure-aware (slides and rows)</option><option value="sentence">Sentence groups</option><option value="fixed">Fixed size (words)</option></select></label>
+<label>Chunk size (words)<input type="number" id="size" value="${S.size}" min="10" max="200"></label><label>Overlap (words)<input type="number" id="overlap" value="${S.overlap}" min="0" max="50"></label>
+<button class="btn" id="go">Chunk it</button></div>
+<div class="stat"><span>${S.chunks.length} chunks</span><span>Average ${S.chunks.length?Math.round(S.chunks.reduce((s,c)=>s+c.text.split(/\s+/).length,0)/S.chunks.length):0} words</span></div>
+<div class="grid">${S.chunks.map(c=>`<div class="chunk"><small>${c.id}</small><br>${esc(c.text)}</div>`).join("")}</div>
+<div class="tip"><b>Compare:</b> fixed-size cuts through sentences and loses where each chunk came from. Structure-aware keeps one idea per chunk. Overlap applies to fixed size only.</div></div>`,
+2:()=>`<div class="card panel"><h2>Step 3: Attach metadata</h2><p class="lead">Metadata describes each chunk: where it came from and what kind of content it is. It is stored beside the text and used for filtering and citations.</p>
+<div class="grid">${S.chunks.map(c=>`<div class="chunk"><small>${c.id}</small><div style="margin:6px 0">${chips(c.meta)}</div>${esc(c.text.slice(0,90))}${c.text.length>90?"…":""}</div>`).join("")}</div>
+<div class="tip"><b>Try it:</b> go back and choose Fixed size. The metadata turns to "unknown", so you can no longer cite a slide or filter by section.</div></div>`,
+3:()=>`<div class="card panel"><h2>Step 4: Turn chunks into embeddings</h2><p class="lead">Each chunk becomes a list of numbers (a vector) so the computer can measure similarity. Chunks with similar meaning get similar patterns.</p>
+<div class="grid">${S.chunks.map((c,i)=>`<div class="chunk"><small>${c.id} · ${DIM} dimensions</small>${heat(S.vecs[i])}</div>`).join("")}</div>
+<div class="tip"><b>Simulation note:</b> a real system calls an embedding model. Here the vectors are built by hashing words into ${DIM} slots (purple is positive, teal is negative), so matching words give matching patterns. The workflow is identical, but real models also capture synonyms and meaning.</div></div>`,
+4:()=>`<div class="card panel"><h2>Step 5: Store in a vector database</h2><p class="lead">The vector, the text and the metadata are saved together as one record. This table is your mini vector database.</p>
+<div class="scroll"><table><tr><th>id</th><th>vector (first 6 values)</th><th>metadata</th><th>text</th></tr>${S.chunks.map((c,i)=>`<tr><td>${c.id}</td><td>[${S.vecs[i].slice(0,6).map(x=>x.toFixed(2)).join(", ")}, …]</td><td>${chips(c.meta)}</td><td>${esc(c.text.slice(0,70))}…</td></tr>`).join("")}</table></div>
+<div class="tip"><b>In practice:</b> tools like Qdrant, Chroma or pgvector index these records so the nearest vectors can be found quickly, even across millions of chunks.</div></div>`,
+5:()=>{const secs=[...new Set(S.chunks.map(c=>c.meta.section))];return `<div class="card panel"><h2>Step 6: Retrieve the best matches</h2><p class="lead">Your question is embedded the same way, then compared with every stored vector using cosine similarity. The closest chunks win.</p>
+<div class="row"><label style="flex:3 1 280px">Your question<input type="text" id="q" value="${esc(S.q)}"></label>
+<label>Top results (k)<input type="number" id="k" value="${S.k}" min="1" max="8"></label>
+<label>Metadata filter (section)<select id="filter"><option value="all">No filter</option>${secs.map(s=>`<option ${S.filter==s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
+<button class="btn" id="search">Search</button></div>
+${S.res.length?S.res.map((r,i)=>`<div class="hit ${i==0?"top":""}"><div class="score">${r.s.toFixed(2)}<div class="bar"><b style="width:${Math.max(0,r.s)*100}%"></b></div></div><div><small>${r.c.id} ${chips(r.c.meta)}</small><div>${esc(r.c.text)}</div></div></div>`).join(""):`<p class="lead">Press Search to see ranked results.</p>`}
+<div class="tip"><b>Try it:</b> ask "how do we keep verification current?" and then filter by section Risks. The filter removes chunks that cannot answer.</div></div>`},
+6:()=>{const p=prompt();return `<div class="card panel"><h2>Step 7: Augment and generate</h2><p class="lead">The retrieved chunks are placed into a prompt with your question. The language model answers using only that context, and can cite sources.</p>
+<label style="font-weight:600;font-size:14px"><input type="checkbox" id="parent" ${S.parent?"checked":""}> Send the full parent slide instead of just the matched chunk</label>
+<h3>Prompt sent to the model</h3><pre>${esc(p)}</pre>
+<h3>Answer (simulated)</h3><div class="ans">${answer()}</div>
+<div class="tip"><b>Simulation note:</b> a real LLM would write this answer from the prompt. Here the best-matching sentences are picked and highlighted so you can see how the context drives the response.</div></div>`}
+};
+
+function search(){ensure(3);const q=embed(S.q);S.res=S.chunks.map((c,i)=>({c,s:cos(q,S.vecs[i])})).filter(r=>S.filter=="all"||r.c.meta.section==S.filter).sort((a,b)=>b.s-a.s).slice(0,S.k)}
+function prompt(){if(!S.res.length)search();const cx=S.res.map((r,i)=>`[${i+1}] (slide ${r.c.meta.slide}, ${r.c.meta.section}) ${S.parent&&r.c.parent?r.c.parent.replace(/\n/g," "):r.c.text}`).join("\n");
+ return `System: Answer using only the context below. Cite sources like [1]. If the answer is not in the context, say you don't know.\n\nContext:\n${cx}\n\nQuestion: ${S.q}`}
+function answer(){const qt=new Set(tok(S.q));const sc=[];S.res.forEach((r,i)=>{r.c.text.split(/(?<=[.!?])\s+/).forEach(s=>{const n=tok(s).filter(w=>qt.has(w)).length;sc.push({s,n,i})})});
+ const best=sc.sort((a,b)=>b.n-a.n).slice(0,2).filter(x=>x.n>0||S.res.length);if(!best.length)return"I don't know. Nothing relevant was retrieved.";
+ return best.map(b=>`${esc(b.s)} <b>[${b.i+1}]</b>`).join(" ")}
+
+function render(){const st=$("#steps");st.innerHTML=STEPS.map((n,i)=>`<button class="${i==S.step?"on":i<S.reached?"done":""}" data-i="${i}">${i+1}. ${n}</button>`).join("");
+ ensure(S.step);S.reached=Math.max(S.reached,S.step);
+ $("#main").innerHTML=V[S.step]()+`<div class="nav"><button class="btn alt" id="back" ${S.step?"":"disabled style='opacity:.4'"}>Back</button><button class="btn" id="next" ${S.step<6?"":"disabled style='opacity:.4'"}>${S.step<6?"Next: "+STEPS[S.step+1]:"Done"}</button></div>`;
+ st.children[S.step].scrollIntoView({inline:"center",block:"nearest"});bind()}
+function bind(){const g=id=>document.getElementById(id);
+ $("#steps").onclick=e=>{const b=e.target.closest("button");if(b){S.step=+b.dataset.i;render()}};
+ g("back").onclick=()=>{S.step--;render()};g("next").onclick=()=>{S.step++;render()};
+ if(g("doc"))g("doc").oninput=e=>{S.doc=e.target.value;S.chunks=[];S.vecs=[];S.res=[]};
+ if(g("go")){g("mode").value=S.mode;g("go").onclick=()=>{S.mode=g("mode").value;S.size=+g("size").value||40;S.overlap=Math.min(+g("overlap").value||0,S.size-1);doChunk();render()}}
+ if(g("search"))g("search").onclick=()=>{S.q=g("q").value;S.k=+g("k").value||3;S.filter=g("filter").value;search();render()};
+ if(g("parent"))g("parent").onchange=e=>{S.parent=e.target.checked;render()}}
+render();
+</script>
+</body>
+</html>
